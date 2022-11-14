@@ -200,23 +200,22 @@ func NewManager(address string, dbFile string, count prometheus.Gauge, cache *re
 	r.HandleFunc("/floor", m.GetFloor).Methods("GET")
 
 	// Metrics
-	p := prometheus.NewRegistry()
-	p.MustRegister(tickerCount)
-	p.MustRegister(marketcapCount)
-	p.MustRegister(circulatingCount)
-	p.MustRegister(valuelockedCount)
-	p.MustRegister(boardCount)
-	p.MustRegister(gasCount)
-	p.MustRegister(tokenCount)
-	p.MustRegister(holdersCount)
-	p.MustRegister(floorCount)
-	p.MustRegister(lastUpdate)
-	p.MustRegister(cacheHits)
-	p.MustRegister(cacheMisses)
-	p.MustRegister(rateLimited)
-	p.MustRegister(updateError)
-	handler := promhttp.HandlerFor(p, promhttp.HandlerOpts{})
-	r.Handle("/metrics", handler)
+	prometheus.MustRegister(tickerCount)
+	prometheus.MustRegister(marketcapCount)
+	prometheus.MustRegister(circulatingCount)
+	prometheus.MustRegister(valuelockedCount)
+	prometheus.MustRegister(boardCount)
+	prometheus.MustRegister(gasCount)
+	prometheus.MustRegister(tokenCount)
+	prometheus.MustRegister(holdersCount)
+	prometheus.MustRegister(floorCount)
+	prometheus.MustRegister(lastUpdate)
+	prometheus.MustRegister(cacheHits)
+	prometheus.MustRegister(cacheMisses)
+	prometheus.MustRegister(rateLimited)
+	prometheus.MustRegister(updateError)
+
+	r.Handle("/metrics", promhttp.Handler())
 
 	// Pull in existing bots
 	var noDB *sql.DB
@@ -359,6 +358,7 @@ func dbInit(fileName string) *sql.DB {
 		id integer primary key autoincrement,
 		clientId string,
 		token string,
+		apiToken string,
 		frequency integer,
 		nickname bool,
 		network string
@@ -399,6 +399,19 @@ func dbInit(fileName string) *sql.DB {
 		logger.Warnln("Added new column to tickers: multiplier (1)")
 	} else if err.Error() == "SQL logic error: duplicate column name: multiplier (1)" {
 		logger.Debug("New column already exists in tickers: multiplier (1)")
+	} else if err != nil {
+		logger.Errorln(err)
+		logger.Warning("Will not be storing state.")
+		var dbNull *sql.DB
+		return dbNull
+	}
+
+	// v3.11.0 - add gas API Token
+	_, err = db.Exec("alter table gases add column apiToken default \"\";")
+	if err == nil {
+		logger.Warnln("Added new column to tickers: multiplier (1)")
+	} else if err.Error() == "SQL logic error: duplicate column name: apiToken (1)" {
+		logger.Debug("New column already exists in gases: apiToken (1)")
 	} else if err != nil {
 		logger.Errorln(err)
 		logger.Warning("Will not be storing state.")

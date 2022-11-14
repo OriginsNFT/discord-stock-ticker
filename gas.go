@@ -16,6 +16,7 @@ type Gas struct {
 	Network   string   `json:"network"`
 	Nickname  bool     `json:"nickname"`
 	Frequency int      `json:"frequency"`
+	APIToken  string   `json:"api_token"`
 	ClientID  string   `json:"client_id"`
 	Token     string   `json:"discord_bot_token"`
 	Close     chan int `json:"-"`
@@ -36,7 +37,7 @@ func (g *Gas) watchGasPrice() {
 	// create a new discord session using the provided bot token.
 	dg, err := discordgo.New("Bot " + g.Token)
 	if err != nil {
-		logger.Errorf("Error creating Discord session: %s\n", err)
+		logger.Errorf("Creating Discord session (%s): %s", g.ClientID, err)
 		lastUpdate.With(prometheus.Labels{"type": "gas", "ticker": g.Network, "guild": "None"}).Set(0)
 		return
 	}
@@ -44,7 +45,7 @@ func (g *Gas) watchGasPrice() {
 	// show as online
 	err = dg.Open()
 	if err != nil {
-		logger.Errorf("error opening discord connection: %s\n", err)
+		logger.Errorf("Opening discord connection (%s): %s", g.ClientID, err)
 		lastUpdate.With(prometheus.Labels{"type": "gas", "ticker": g.Network, "guild": "None"}).Set(0)
 		return
 	}
@@ -60,7 +61,7 @@ func (g *Gas) watchGasPrice() {
 	}
 
 	// check for frequency override
-	// set to one hour to avoid lockout
+	// set to ten min to avoid lockout
 	if *frequency != 0 {
 		g.Frequency = 600
 	}
@@ -82,7 +83,7 @@ func (g *Gas) watchGasPrice() {
 			return
 		case <-ticker.C:
 			// get gas prices
-			gasPrices, err := utils.GetGasPrices(g.Network)
+			gasPrices, err := utils.GetGasPrices(g.Network, g.APIToken)
 			if err != nil {
 				logger.Errorf("Error getting rates: %s\n", err)
 				continue
