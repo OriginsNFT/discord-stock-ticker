@@ -23,7 +23,7 @@ type Board struct {
 	Frequency  int      `json:"frequency"`
 	ClientID   string   `json:"client_id"`
 	Token      string   `json:"discord_bot_token"`
-	Close      chan int `json:"-"`
+	close      chan int `json:"-"`
 }
 
 // label returns a human readble id for this bot
@@ -33,6 +33,11 @@ func (b *Board) label() string {
 		label = label[:32]
 	}
 	return label
+}
+
+// Shutdown sends a signal to shut off the goroutine
+func (b *Board) Shutdown() {
+	b.close <- 1
 }
 
 func (b *Board) watchStockPrice() {
@@ -71,11 +76,13 @@ func (b *Board) watchStockPrice() {
 	logger.Infof("Watching board for %s", b.Name)
 	ticker := time.NewTicker(time.Duration(b.Frequency) * time.Second)
 
+	b.close = make(chan int, 1)
+
 	// continuously watch
 	for {
 		for _, symbol := range b.Items {
 			select {
-			case <-b.Close:
+			case <-b.close:
 				logger.Infof("Shutting down price watching for %s", b.Name)
 				return
 			case <-ticker.C:
@@ -176,7 +183,7 @@ func (b *Board) watchStockPrice() {
 						}
 					}
 
-					err = dg.UpdateGameStatus(0, b.Name)
+					err = dg.UpdateWatchStatus(0, b.Name)
 					if err != nil {
 						logger.Errorf("Unable to set activity: %s\n", err)
 					} else {
@@ -193,7 +200,7 @@ func (b *Board) watchStockPrice() {
 						activity = fmt.Sprintf("%s %s %s $%s", symbol, fmtPrice, decorator, fmtDiff)
 					}
 
-					err = dg.UpdateGameStatus(0, activity)
+					err = dg.UpdateWatchStatus(0, activity)
 					if err != nil {
 						logger.Errorf("Unable to set activity: %s\n", err)
 					} else {
@@ -243,11 +250,13 @@ func (b *Board) watchCryptoPrice() {
 	ticker := time.NewTicker(time.Duration(b.Frequency) * time.Second)
 	var success bool
 
+	b.close = make(chan int, 1)
+
 	// continuously watch
 	for {
 		for _, symbol := range b.Items {
 			select {
-			case <-b.Close:
+			case <-b.close:
 				logger.Infof("Shutting down price watching for %s", b.Name)
 				return
 			case <-ticker.C:
@@ -348,7 +357,7 @@ func (b *Board) watchCryptoPrice() {
 						}
 					}
 
-					err = dg.UpdateGameStatus(0, b.Name)
+					err = dg.UpdateWatchStatus(0, b.Name)
 					if err != nil {
 						logger.Errorf("Unable to set activity: %s\n", err)
 					} else {
@@ -359,7 +368,7 @@ func (b *Board) watchCryptoPrice() {
 
 					// format activity
 					activity := fmt.Sprintf("%s $%s %s %s", strings.ToUpper(priceData.Symbol), fmtPrice, decorator, fmtDiff)
-					err = dg.UpdateGameStatus(0, activity)
+					err = dg.UpdateWatchStatus(0, activity)
 					if err != nil {
 						logger.Errorf("Unable to set activity: %s\n", err)
 					} else {

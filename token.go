@@ -26,7 +26,7 @@ type Token struct {
 	Source    string   `json:"source"`
 	ClientID  string   `json:"client_id"`
 	Token     string   `json:"discord_bot_token"`
-	Close     chan int `json:"-"`
+	close     chan int `json:"-"`
 }
 
 // label returns a human readble id for this bot
@@ -36,6 +36,28 @@ func (t *Token) label() string {
 		label = label[:32]
 	}
 	return label
+}
+
+// Format nickname
+func formatNickname(t *Token, price float64) string {
+	if price <= math.Pow10(-t.Decimals) {
+		return fmt.Sprintf("%s %s $%.2e", t.Name, t.Decorator, price)
+	} else {
+		return fmt.Sprintf("%s %s $%."+strconv.Itoa(t.Decimals)+"f", t.Name, t.Decorator, price)
+	}
+}
+
+// Format activity when not using nickname
+func formatActivity(t *Token, price float64) string {
+	if price <= math.Pow10(-t.Decimals) {
+		return fmt.Sprintf("%s %s $%.2e", t.Name, t.Decorator, price)
+	} else {
+		return fmt.Sprintf("%s %s $%."+strconv.Itoa(t.Decimals)+"f", t.Name, t.Decorator, price)
+	}
+}
+
+func (t *Token) Shutdown() {
+	t.close <- 1
 }
 
 func (t *Token) watchTokenPrice() {
@@ -75,6 +97,8 @@ func (t *Token) watchTokenPrice() {
 	var arrows bool
 	if t.Decorator == "" {
 		arrows = true
+	} else if t.Decorator == " " {
+		t.Decorator = ""
 	}
 
 	// Grab custom activity messages
@@ -94,11 +118,14 @@ func (t *Token) watchTokenPrice() {
 	ticker := time.NewTicker(time.Duration(t.Frequency) * time.Second)
 	var success bool
 
+	t.close = make(chan int, 1)
+
 	// continuously watch
 	var oldPrice float64
+	var increase bool
 	for {
 		select {
-		case <-t.Close:
+		case <-t.close:
 			logger.Infof("Shutting down price watching for %s", t.Name)
 			return
 		case <-ticker.C:
@@ -171,10 +198,9 @@ func (t *Token) watchTokenPrice() {
 			}
 
 			// calculate if price has moved up or down
-			var increase bool
-			if fmtPrice >= oldPrice {
+			if fmtPrice > oldPrice {
 				increase = true
-			} else {
+			} else if fmtPrice < oldPrice {
 				increase = false
 			}
 
@@ -192,34 +218,7 @@ func (t *Token) watchTokenPrice() {
 
 				// format nickname & activity
 				// Check for custom decimal places
-				switch t.Decimals {
-				case 0:
-					nickname = fmt.Sprintf("%s %s $%.0f", t.Name, t.Decorator, fmtPrice)
-				case 1:
-					nickname = fmt.Sprintf("%s %s $%.1f", t.Name, t.Decorator, fmtPrice)
-				case 2:
-					nickname = fmt.Sprintf("%s %s $%.2f", t.Name, t.Decorator, fmtPrice)
-				case 3:
-					nickname = fmt.Sprintf("%s %s $%.3f", t.Name, t.Decorator, fmtPrice)
-				case 4:
-					nickname = fmt.Sprintf("%s %s $%.4f", t.Name, t.Decorator, fmtPrice)
-				case 5:
-					nickname = fmt.Sprintf("%s %s $%.5f", t.Name, t.Decorator, fmtPrice)
-				case 6:
-					nickname = fmt.Sprintf("%s %s $%.6f", t.Name, t.Decorator, fmtPrice)
-				case 7:
-					nickname = fmt.Sprintf("%s %s $%.7f", t.Name, t.Decorator, fmtPrice)
-				case 8:
-					nickname = fmt.Sprintf("%s %s $%.8f", t.Name, t.Decorator, fmtPrice)
-				case 9:
-					nickname = fmt.Sprintf("%s %s $%.9f", t.Name, t.Decorator, fmtPrice)
-				case 10:
-					nickname = fmt.Sprintf("%s %s $%.10f", t.Name, t.Decorator, fmtPrice)
-				case 11:
-					nickname = fmt.Sprintf("%s %s $%.11f", t.Name, t.Decorator, fmtPrice)
-				default:
-					nickname = fmt.Sprintf("%s %s $%.4f", t.Name, t.Decorator, fmtPrice)
-				}
+				nickname = formatNickname(t, fmtPrice)
 
 				// Update nickname in guilds
 				for _, g := range guilds {
@@ -298,7 +297,7 @@ func (t *Token) watchTokenPrice() {
 					}
 				}
 
-				err = dg.UpdateGameStatus(0, activity)
+				err = dg.UpdateWatchStatus(0, activity)
 				if err != nil {
 					logger.Error("Unable to set activity: ", err)
 				} else {
@@ -306,9 +305,9 @@ func (t *Token) watchTokenPrice() {
 				}
 
 			} else {
-				activity := fmt.Sprintf("%s %s $%.2f", t.Name, t.Decorator, fmtPrice)
+				activity := formatActivity(t, fmtPrice)
 
-				err = dg.UpdateGameStatus(0, activity)
+				err = dg.UpdateWatchStatus(0, activity)
 				if err != nil {
 					logger.Error("Unable to set activity: ", err)
 				} else {

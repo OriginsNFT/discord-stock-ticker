@@ -33,7 +33,7 @@ type Ticker struct {
 	Token          string   `json:"discord_bot_token"`
 	TwelveDataKey  string   `json:"twelve_data_key"`
 	Exrate         float64  `json:"exrate"`
-	Close          chan int `json:"-"`
+	close          chan int `json:"-"`
 }
 
 // label returns a human readble id for this bot
@@ -48,6 +48,11 @@ func (s *Ticker) label() string {
 		label = label[:32]
 	}
 	return label
+}
+
+// Shutdown sends a signal to shut off the goroutine
+func (s *Ticker) Shutdown() {
+	s.close <- 1
 }
 
 func (s *Ticker) watchStockPrice() {
@@ -101,6 +106,8 @@ func (s *Ticker) watchStockPrice() {
 	var arrows bool
 	if s.Decorator == "" {
 		arrows = true
+	} else if s.Decorator == " " {
+		s.Decorator = ""
 	}
 
 	// Grab custom activity messages
@@ -119,10 +126,12 @@ func (s *Ticker) watchStockPrice() {
 	logger.Infof("Watching stock price for %s", s.Ticker)
 	ticker := time.NewTicker(time.Duration(s.Frequency) * time.Second)
 
+	s.close = make(chan int, 1)
+
 	// continuously watch
 	for {
 		select {
-		case <-s.Close:
+		case <-s.close:
 			logger.Infof("Shutting down price watching for %s", s.Name)
 			return
 		case <-ticker.C:
@@ -268,7 +277,7 @@ func (s *Ticker) watchStockPrice() {
 					}
 				}
 
-				err = dg.UpdateGameStatus(0, activity)
+				err = dg.UpdateWatchStatus(0, activity)
 				if err != nil {
 					logger.Errorf("Unable to set activity: %s", err)
 				} else {
@@ -278,7 +287,7 @@ func (s *Ticker) watchStockPrice() {
 			} else {
 				activity := fmt.Sprintf("%s %s %s", fmtPrice, s.Decorator, fmtDiffPercent)
 
-				err = dg.UpdateGameStatus(0, activity)
+				err = dg.UpdateWatchStatus(0, activity)
 				if err != nil {
 					logger.Errorf("Unable to set activity: %s", err)
 				} else {
@@ -410,10 +419,12 @@ func (s *Ticker) watchCryptoPrice() {
 	ticker := time.NewTicker(time.Duration(s.Frequency) * time.Second)
 	var success bool
 
+	s.close = make(chan int, 1)
+
 	// continuously watch
 	for {
 		select {
-		case <-s.Close:
+		case <-s.close:
 			logger.Infof("Shutting down price watching for %s", s.Name)
 			return
 		case <-ticker.C:
@@ -624,7 +635,7 @@ func (s *Ticker) watchCryptoPrice() {
 				// set activity
 				wg := sync.WaitGroup{}
 				for _, sess := range shards {
-					err = sess.UpdateGameStatus(0, activity)
+					err = sess.UpdateWatchStatus(0, activity)
 					if err != nil {
 						logger.Errorf("Unable to set activity: %s", err)
 					} else {
@@ -641,7 +652,7 @@ func (s *Ticker) watchCryptoPrice() {
 
 				wg := sync.WaitGroup{}
 				for _, sess := range shards {
-					err = sess.UpdateGameStatus(0, activity)
+					err = sess.UpdateWatchStatus(0, activity)
 					if err != nil {
 						logger.Errorf("Unable to set activity: %s", err)
 					} else {
