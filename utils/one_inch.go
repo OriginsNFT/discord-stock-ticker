@@ -48,6 +48,7 @@ func Get1inchTokenPrice(network, contract string) (string, error) {
 	var result string
 
 	// Get network id for 1inch, default to eth
+	// currency is the token address of USDC on the network (or preferred stablecoin)
 	switch network {
 	case "ethereum":
 		networkId = "1"
