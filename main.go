@@ -59,7 +59,7 @@ func main() {
 
 	logger.Infof("Running discord-stock-ticker version %s...", buildVersion)
 
-	// Redis is used a an optional cache for coingecko data
+	// Redis is used an optional cache for coingecko data
 	if *cache {
 		rdb = redis.NewClient(&redis.Options{
 			Addr:     *redisAddress,
