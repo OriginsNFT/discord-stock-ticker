@@ -61,10 +61,6 @@ func Get1inchTokenPrice(network, contract string) (string, error) {
 		networkId = "137"
 		amount = "10000000000000000000"
 		currency = "0x2791bca1f2de4661ed88a30c99a7a9449aa84174"
-	case "arbitrum":
-		networkId = "42161"
-		amount = "10000000000000000000"
-		currency = "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8"
 	default:
 		networkId = "1"
 		amount = "10000000000000000000"
